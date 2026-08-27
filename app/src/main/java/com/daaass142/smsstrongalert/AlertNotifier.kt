@@ -71,7 +71,6 @@ object AlertNotifier {
             )
             .setCategory(Notification.CATEGORY_ALARM)
             .setVisibility(Notification.VISIBILITY_PUBLIC)
-            .setPriority(Notification.PRIORITY_MAX)
             .setContentIntent(alertPendingIntent)
             .setFullScreenIntent(alertPendingIntent, true)
             .setOngoing(true)

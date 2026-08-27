@@ -1,5 +1,6 @@
 package com.daaass142.smsstrongalert
 
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.graphics.Color
 import android.graphics.Typeface
@@ -34,6 +35,12 @@ class AlertActivity : Activity() {
             )
         }
 
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
+            onBackInvokedDispatcher.registerOnBackInvokedCallback(
+                android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT,
+            ) { acknowledge() }
+        }
+
         buildUi()
         render(intent.extras)
     }
@@ -44,7 +51,8 @@ class AlertActivity : Activity() {
         render(intent.extras)
     }
 
-    @Suppress("DEPRECATION")
+    @SuppressLint("GestureBackNavigation")
+    @Deprecated("Legacy back callback for Android 12L and older")
     override fun onBackPressed() {
         acknowledge()
     }
