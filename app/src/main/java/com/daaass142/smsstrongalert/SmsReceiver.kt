@@ -8,16 +8,29 @@ import android.provider.Telephony
 class SmsReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Telephony.Sms.Intents.SMS_RECEIVED_ACTION) return
-        if (!Prefs.isEnabled(context)) return
 
         val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent)
         if (messages.isEmpty()) return
 
         val body = messages.joinToString(separator = "") { it.messageBody.orEmpty() }.trim()
-        val sender = messages.firstNotNullOfOrNull { it.displayOriginatingAddress }
+        val rawSender = messages.firstNotNullOfOrNull { it.displayOriginatingAddress }
             ?: messages.firstNotNullOfOrNull { it.originatingAddress }
-            ?: "未知号码"
 
+        // Keep only proof that Android actually delivered and decoded SMS data.
+        // The SMS body and sender are never persisted.
+        if (body.isNotEmpty()) {
+            Prefs.recordSmsObservation(
+                context = context.applicationContext,
+                observedAtMillis = System.currentTimeMillis(),
+                bodyLength = body.length,
+                partCount = messages.size,
+                senderPresent = !rawSender.isNullOrBlank(),
+            )
+        }
+
+        if (!Prefs.isEnabled(context)) return
+
+        val sender = rawSender ?: "未知号码"
         val result = SmsMatcher.match(body, Prefs.plates(context))
         if (!result.matched) return
 

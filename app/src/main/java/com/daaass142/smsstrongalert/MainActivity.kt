@@ -24,6 +24,9 @@ import android.widget.ScrollView
 import android.widget.Spinner
 import android.widget.ArrayAdapter
 import android.widget.TextView
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class MainActivity : Activity() {
     private lateinit var statusText: TextView
@@ -160,23 +163,85 @@ class MainActivity : Activity() {
 
     private fun refreshStatus() {
         val enabled = Prefs.isEnabled(this)
-        val smsGranted = checkSelfPermission(Manifest.permission.RECEIVE_SMS) == PackageManager.PERMISSION_GRANTED
-        val notificationGranted = Build.VERSION.SDK_INT < 33 ||
-            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+
+        val smsPermissionGranted =
+            checkSelfPermission(Manifest.permission.RECEIVE_SMS) == PackageManager.PERMISSION_GRANTED
+        val smsObservation = Prefs.lastSmsObservation(this)
+        val smsVerified = smsPermissionGranted && smsObservation.hasRealDecodedData
+
         val manager = getSystemService(NotificationManager::class.java)
-        val fullScreenGranted = Build.VERSION.SDK_INT < 34 || manager.canUseFullScreenIntent()
-        val dndGranted = manager.isNotificationPolicyAccessGranted
+        val notificationRuntimePermissionGranted =
+            Build.VERSION.SDK_INT < 33 ||
+                checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        val notificationsActuallyEnabled =
+            notificationRuntimePermissionGranted && manager.areNotificationsEnabled()
+
+        val fullScreenActuallyAvailable =
+            Build.VERSION.SDK_INT < 34 || manager.canUseFullScreenIntent()
+        val dndActuallyGranted = manager.isNotificationPolicyAccessGranted
+
         val power = getSystemService(PowerManager::class.java)
-        val batteryExempt = power.isIgnoringBatteryOptimizations(packageName)
+        val batteryActuallyExempt = power.isIgnoringBatteryOptimizations(packageName)
+
+        val requestedPermissions =
+            packageManager.getPackageInfo(packageName, PackageManager.GET_PERMISSIONS)
+                .requestedPermissions
+                ?.toSet()
+                .orEmpty()
+        val networkPermissionActuallyAbsent =
+            Manifest.permission.INTERNET !in requestedPermissions &&
+                Manifest.permission.ACCESS_NETWORK_STATE !in requestedPermissions
 
         statusText.text = buildString {
-            append(if (enabled) "🔴 盯梢状态：盯梢中" else "⚪ 盯梢状态：已暂停")
-            append("\n短信权限：").append(if (smsGranted) "✓ 已授予" else "✗ 未授予")
-            append("\n通知权限：").append(if (notificationGranted) "✓ 已授予" else "✗ 未授予")
-            append("\n全屏提醒：").append(if (fullScreenGranted) "✓ 可用" else "✗ 需授权")
-            append("\n勿扰绕过：").append(if (dndGranted) "✓ 已授权" else "— 未授权（可选）")
-            append("\n电池优化：").append(if (batteryExempt) "✓ 已忽略" else "系统管理（通常无需白名单）")
-            append("\n网络权限：✓ 未声明 INTERNET")
+            append(if (enabled) "🔴 功能开关：已开启" else "⚪ 功能开关：已关闭")
+
+            append("\n短信接收验证：")
+            when {
+                smsVerified -> {
+                    append("✓ 已收到并解码真实短信数据")
+                    append("\n  最近验证：")
+                    append(
+                        SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+                            .format(Date(smsObservation.observedAtMillis)),
+                    )
+                    append(" · ")
+                    append(smsObservation.partCount)
+                    append("段 · ")
+                    append(smsObservation.bodyLength)
+                    append("字")
+                }
+                smsPermissionGranted ->
+                    append("△ 系统权限已给，但尚未收到真实短信，暂不视为已验证")
+                else ->
+                    append("✗ 系统未授予 RECEIVE_SMS")
+            }
+
+            append("\n通知能力实测：")
+            append(if (notificationsActuallyEnabled) "✓ 系统返回可通知" else "✗ 系统返回不可通知")
+
+            append("\n全屏提醒实测：")
+            append(
+                when {
+                    Build.VERSION.SDK_INT < 34 -> "✓ 当前系统无需单独全屏授权"
+                    fullScreenActuallyAvailable -> "✓ 系统返回可使用 Full-screen Intent"
+                    else -> "✗ 系统返回不可使用 Full-screen Intent"
+                },
+            )
+
+            append("\n勿扰绕过实测：")
+            append(if (dndActuallyGranted) "✓ 系统返回已授权" else "✗ 系统返回未授权（可选）")
+
+            append("\n电池白名单实测：")
+            append(if (batteryActuallyExempt) "✓ 系统返回已忽略优化" else "✗ 系统返回未忽略优化（可选）")
+
+            append("\n网络权限实测：")
+            append(
+                if (networkPermissionActuallyAbsent) {
+                    "✓ PackageManager 确认安装包未声明联网权限"
+                } else {
+                    "✗ 安装包声明了联网相关权限"
+                },
+            )
         }
         toggleButton.text = if (enabled) "收工" else "开始盯梢"
     }
