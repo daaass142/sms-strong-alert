@@ -40,6 +40,7 @@ Android 13+ 还需要用户授予 `POST_NOTIFICATIONS`。
 | `USE_FULL_SCREEN_INTENT` | 锁屏/熄屏时尽可能显示全屏告警 |
 | `VIBRATE` | 强提醒震动 |
 | `ACCESS_NOTIFICATION_POLICY` | 可选：用户授权后允许提醒通道绕过勿扰模式 |
+| `MODIFY_AUDIO_SETTINGS` | 提醒期间临时调整闹钟音量并在结束后恢复 |
 
 刻意不申请：`READ_SMS`、`INTERNET`、`ACCESS_NETWORK_STATE`、定位、通讯录、存储、悬浮窗。
 
